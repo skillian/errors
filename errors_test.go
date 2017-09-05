@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	HelloWorld = "Hello, world!"
+	HelloWorld = "Hello, world"
 	HelloWorldWithContext = `Hello, world
 Context:  Hello, world`
 	HelloWorldWithCause = `Hello, world
@@ -26,7 +26,7 @@ func TestExact(t *testing.T) {
 	es := e.Error()
 	if es != HelloWorld {
 		t.Error(
-			"Error without Cause or Context should be the same string!(got: %v, expected %v)"
+			"Error without Cause or Context should be the same string!(got: %v, expected %v)",
 			es,
 			HelloWorld)
 	}
