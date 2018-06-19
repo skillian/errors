@@ -79,6 +79,11 @@ func CreateError(err, cause, context error, skip int) Error {
 	return e
 }
 
+// Errorf returns an error message without a Cause or Context
+func Errorf(format string, args... interface{}) Error {
+	return Error{Err: ErrorMessage{Fmt: format, Args: args}}
+}
+
 // ErrorfWithCause creates an Error with a formatted error string and  then
 // states the error's cause within an Error struct.
 func ErrorfWithCause(cause error, format string, args ...interface{}) Error {
