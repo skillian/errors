@@ -8,14 +8,14 @@ import (
 )
 
 var (
-	HelloWorld = "Hello, world!"
+	HelloWorld = "Hello, world"
 	HelloWorldWithContext = `Hello, world
-Context:  Hello, world`
+	Context:  Hello, world`
 	HelloWorldWithCause = `Hello, world
-Cause:  Hello, world`
+	Cause:  Hello, world`
 	HelloWorldWithCauseAndContext = `Hello, world
-Cause:  Hello, world
-Context:  Hello, world`
+	Cause:  Hello, world
+	Context:  Hello, world`
 
 	ErrHelloWorld = errors.New(HelloWorld)
 )
@@ -25,8 +25,8 @@ func TestExact(t *testing.T) {
 	e := skerrors.Error{Err: ErrHelloWorld}
 	es := e.Error()
 	if es != HelloWorld {
-		t.Error(
-			"Error without Cause or Context should be the same string!(got: %v, expected %v)"
+		t.Errorf(
+			"Error without Cause or Context should be the same string!(got: %q, expected %q)",
 			es,
 			HelloWorld)
 	}
@@ -37,7 +37,7 @@ func TestWithContext(t *testing.T) {
 	e := skerrors.Error{Err: ErrHelloWorld, Context: ErrHelloWorld}
 	es := e.Error()
 	if es != HelloWorldWithContext {
-		t.Errorf("Error with Context should be: %v, got: %v", HelloWorldWithContext, es)
+		t.Errorf("Error with Context should be: %q, got: %q", HelloWorldWithContext, es)
 	}
 }
 
@@ -47,6 +47,6 @@ func TestWithCause(t *testing.T) {
 	e := skerrors.Error{Err: ErrHelloWorld, Cause: ErrHelloWorld}
 	es := e.Error()
 	if es != HelloWorldWithCause {
-		t.Errorf("Error with Cause should be: %v, got: %v", HelloWorldWithCause, es)
+		t.Errorf("Error with Cause should be: %q, got: %q", HelloWorldWithCause, es)
 	}
 }

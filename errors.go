@@ -1,11 +1,13 @@
-// Errors is a package that helps with propogating error messages up the
-// call stack.  When unhandled, the errors.Error struct prints the wrapped
-// error message, the error cause and its context (the error being handled
-// when the errors.Error.Err error was produced).
+// Package errors helps with propogating error messages up the call stack.
+// When unhandled, the errors.Error struct prints the wrapped error message,
+// the error cause and its context (the error being handled when the
+// errors.Error.Err error was produced).
 package errors
 
 import (
 	"fmt"
+	"runtime"
+	"strings"
 )
 
 // Error bundles a builtin error with its causing error (Cause) or the error
@@ -22,31 +24,77 @@ type Error struct {
 	// Context contains the error value that was being handled when Err
 	// was generated
 	Context error
+
+	// pcs holds a slice of program counters that can be turned into a stack
+	// trace.
+	pcs []uintptr
+}
+
+// Cause gets the root cause of the given error.  If the error is an
+// errors.Error or *errors.Error, Cause attempts to recursively unpack the
+// errors.Error.Cause until it gets to a Cause that is not an errors.Error or
+// *errors.Error.
+func Cause(err error) error {
+	for {
+		e, ok := err.(Error)
+		if !ok {
+			pe, ok := err.(*Error)
+			if !ok {
+				return err
+			}
+			e = *pe
+		}
+		if e.Cause == nil {
+			return e.Err
+		}
+		err = e.Cause
+	}
+}
+
+// WrapDefer wraps a deferred function to ensure its returned error value is
+// not discarded.
+func WrapDefer(pe *error, deferred func() error) {
+	if pe == nil {
+		panic("WrapDefer requires a pointer to an error")
+	}
+	err := deferred()
+	if err != nil {
+		if (*pe) != nil {
+			err = CreateError(err, nil, *pe, 0)
+		}
+		*pe = err
+	}
+}
+
+// CreateError creates and returns an Error object after initializing its
+// program counters slice starting at the frame specified by skip where a value
+// of 0 will start from the caller of CreateError
+func CreateError(err, cause, context error, skip int) Error {
+	e := Error{
+		Err:     err,
+		Cause:   cause,
+		Context: context,
+	}
+	setErrorPCs(skip+1, &e)
+	return e
 }
 
 // ErrorfWithCause creates an Error with a formatted error string and  then
 // states the error's cause within an Error struct.
-func ErrorfWithCause(cause error, format string, args... interface{}) Error {
-	return Error{Err: ErrorMessage{Fmt: format, Args: args}, Cause: cause}
+func ErrorfWithCause(cause error, format string, args ...interface{}) Error {
+	return CreateError(ErrorMessage{Fmt: format, Args: args}, cause, nil, 1)
 }
 
 // ErrorfWithContext creates an Error with a formatted error string and  then
 // states the error's context within an Error struct.
-func ErrorfWithContext(context error, format string, args... interface{}) Error {
-	return Error{Err: ErrorMessage{Fmt: format, Args: args}, Context: context}
+func ErrorfWithContext(context error, format string, args ...interface{}) Error {
+	return CreateError(ErrorMessage{Fmt: format, Args: args}, nil, context, 1)
 }
 
 // ErrorfWithCauseAndContext creates an Error with a formatted error string and
 // then states the error's context within an Error struct.
-func ErrorfWithCauseAndContext(cause, context error, format string, args... interface{}) Error {
-	return Error{
-		Err: ErrorMessage{
-			Fmt: format,
-			Args: args,
-		},
-		Cause: cause,
-		Context: context,
-	}
+func ErrorfWithCauseAndContext(cause, context error, format string, args ...interface{}) Error {
+	return CreateError(ErrorMessage{Fmt: format, Args: args}, cause, context, 1)
 }
 
 // Error implements the builtin error interface that includes information about
@@ -56,15 +104,50 @@ func (e Error) Error() string {
 	if e.Cause == nil {
 		ca = ""
 	} else {
-		ca = fmt.Sprintf("\nCause:  %v", e.Cause)
+		ca = fmt.Sprintf("\n\tCause:  %v", e.Cause)
 	}
 	var co string
 	if e.Context == nil {
 		co = ""
 	} else {
-		ca = fmt.Sprintf("\nContext:  %v", e.Context)
+		co = fmt.Sprintf("\n\tContext:  %v", e.Context)
 	}
-	return fmt.Sprintf("%v%v%v", e.Err, ca, co)
+	stackTrace := formatStackTrace(e)
+	return fmt.Sprintf(
+		"%v%v%v%v",
+		e.Err,
+		stackTrace,
+		ca,
+		co)
+}
+
+func setErrorPCs(skip int, e *Error) {
+	var pcs [32]uintptr
+	count := runtime.Callers(skip+2, pcs[:])
+	e.pcs = make([]uintptr, count)
+	for i, pc := range pcs[:count] {
+		e.pcs[i] = pc
+	}
+}
+
+func formatStackTrace(e Error) string {
+	if e.pcs == nil {
+		return ""
+	}
+	formattedFrames := make([]string, 0, len(e.pcs))
+	frames := runtime.CallersFrames(e.pcs)
+	for {
+		frame, more := frames.Next()
+		formattedFrames = append(formattedFrames, fmt.Sprintf(
+			"   at %v in %v, line %d",
+			frame.Function,
+			frame.File,
+			frame.Line))
+		if !more {
+			break
+		}
+	}
+	return strings.Join(formattedFrames, "\n")
 }
 
 // Message defines a message with parameters
@@ -85,10 +168,13 @@ func (m Message) String() string {
 // it can be treated as an error.
 type ErrorMessage Message
 
+// Errorf works like fmt.Errorf but returns an ErrorMessage
+func Errorf(format string, args ...interface{}) ErrorMessage {
+	return ErrorMessage(Message{Fmt: format, Args: args})
+}
+
 // Error implements the builtin error interface to treat messages as error
 // messages
 func (m ErrorMessage) Error() string {
 	return Message(m).String()
 }
-
-
