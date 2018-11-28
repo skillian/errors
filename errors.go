@@ -81,25 +81,25 @@ func CreateError(err, cause, context error, skip int) Error {
 
 // Errorf returns an error message without a Cause or Context
 func Errorf(format string, args... interface{}) Error {
-    return Error{Err: ErrorMessage{Fmt: format, Args: args}}
+    return CreateError(Message{Fmt: format, Args: args}, nil, nil, 1)
 }
 
 // ErrorfWithCause creates an Error with a formatted error string and  then
 // states the error's cause within an Error struct.
 func ErrorfWithCause(cause error, format string, args ...interface{}) Error {
-    return CreateError(ErrorMessage{Fmt: format, Args: args}, cause, nil, 1)
+    return CreateError(Message{Fmt: format, Args: args}, cause, nil, 1)
 }
 
 // ErrorfWithContext creates an Error with a formatted error string and  then
 // states the error's context within an Error struct.
 func ErrorfWithContext(context error, format string, args ...interface{}) Error {
-    return CreateError(ErrorMessage{Fmt: format, Args: args}, nil, context, 1)
+    return CreateError(Message{Fmt: format, Args: args}, nil, context, 1)
 }
 
 // ErrorfWithCauseAndContext creates an Error with a formatted error string and
 // then states the error's context within an Error struct.
 func ErrorfWithCauseAndContext(cause, context error, format string, args ...interface{}) Error {
-    return CreateError(ErrorMessage{Fmt: format, Args: args}, cause, context, 1)
+    return CreateError(Message{Fmt: format, Args: args}, cause, context, 1)
 }
 
 // Error implements the builtin error interface that includes information about
@@ -155,31 +155,17 @@ func formatStackTrace(e Error) string {
     return strings.Join(formattedFrames, "\n")
 }
 
-// Message defines a message with parameters
+// Message defines an error message with parameters
 type Message struct {
     // Fmt holds a string with its formatting parameters
     Fmt string
+
     // Args are the parameters to the Fmt string in the message
     Args []interface{}
 }
 
-// String implements the io.Stringer protocol so that printing strings formats
+// Error implements the error interface so that printing strings formats
 // the arguments.
-func (m Message) String() string {
+func (m Message) Error() string {
     return fmt.Sprintf(m.Fmt, m.Args...)
-}
-
-// ErrorMessage is the same thing as a message with a separate type so that
-// it can be treated as an error.
-type ErrorMessage Message
-
-// Errorf works like fmt.Errorf but returns an ErrorMessage
-func Errorf(format string, args ...interface{}) ErrorMessage {
-    return ErrorMessage(Message{Fmt: format, Args: args})
-}
-
-// Error implements the builtin error interface to treat messages as error
-// messages
-func (m ErrorMessage) Error() string {
-    return Message(m).String()
 }
