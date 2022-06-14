@@ -5,7 +5,7 @@
 package errors
 
 import (
-	goerr "errors"
+	goerrors "errors"
 	"fmt"
 	"os"
 	"path"
@@ -16,17 +16,15 @@ import (
 const pathSep = string(byte(os.PathSeparator))
 
 var (
-	goPath = appendSlash(path.Clean(os.Getenv("GOPATH")))
-)
-
-func appendSlash(v string) string {
-	if len(v) >= len(pathSep) {
-		if v[len(v)-len(pathSep):] != pathSep {
-			return v + pathSep
+	goPath = func(v string) string {
+		if len(v) >= len(pathSep) {
+			if v[len(v)-len(pathSep):] != pathSep {
+				return v + pathSep
+			}
 		}
-	}
-	return v
-}
+		return v
+	}(path.Clean(os.Getenv("GOPATH")))
+)
 
 // Error bundles a builtin error with its causing error (Cause) or the error
 // that was being handled at the time that the Err error occurred (Context).
@@ -69,10 +67,20 @@ func Cause(err error) error {
 	}
 }
 
+// As forwards the call to the go errors package.
+func As(err error, target interface{}) bool {
+	return goerrors.As(err, target)
+}
+
+// Is forwards the call to the go errors package.
+func Is(err, target error) bool {
+	return goerrors.Is(err, target)
+}
+
 // New calls the Go errors package's New function so that you don't have to
 // import both packages.
 func New(text string) error {
-	return goerr.New(text)
+	return goerrors.New(text)
 }
 
 // WrapDeferred wraps a deferred function to ensure its returned error value
@@ -128,15 +136,11 @@ func ErrorfWithCauseAndContext(cause, context error, format string, args ...inte
 // the Err Cause and the Context.
 func (e Error) Error() string {
 	var ca string
-	if e.Cause == nil {
-		ca = ""
-	} else {
+	if e.Cause != nil {
 		ca = fmt.Sprintf("Cause:  %v", e.Cause)
 	}
 	var co string
-	if e.Context == nil {
-		co = ""
-	} else {
+	if e.Context != nil {
 		co = fmt.Sprintf("Context:  %v", e.Context)
 	}
 	stackTrace := formatStackTrace(e)
@@ -148,13 +152,35 @@ func (e Error) Error() string {
 	}, "\n")
 }
 
-func setErrorPCs(skip int, e *Error) {
-	var pcs [32]uintptr
-	count := runtime.Callers(skip+2, pcs[:])
-	e.pcs = make([]uintptr, count)
-	for i, pc := range pcs[:count] {
-		e.pcs[i] = pc
+func (e Error) As(target interface{}) bool {
+	if p, ok := target.(*Error); ok {
+		*p = e
+		return true
 	}
+	return As(e.Err, target) || (e.Cause != nil && As(e.Cause, target)) || (e.Context != nil && As(e.Context, target))
+}
+
+func (e Error) Is(err error) bool {
+	if e2, ok := err.(Error); ok {
+		return Is(e.Err, e2.Err) && ((e.Cause == nil && e2.Cause == nil) || (e.Cause != nil && e2.Cause != nil && Is(e.Cause, e2.Cause))) && ((e.Context == nil && e2.Context == nil) || (e.Context != nil && e2.Context != nil && Is(e.Context, e2.Context)))
+	}
+	return Is(e.Err, err) || (e.Cause != nil && Is(e.Cause, err)) || (e.Context != nil && Is(e.Context, err))
+}
+
+func setErrorPCs(skip int, e *Error) {
+	var cache [32]uintptr
+	pcs := cache[:]
+	for count := 0; ; {
+		count += runtime.Callers(skip+2+count, pcs[count:])
+		if count < len(pcs) {
+			pcs = pcs[:count]
+			break
+		}
+		pcs = append(pcs, 0)
+		pcs = pcs[:cap(pcs)]
+	}
+	e.pcs = make([]uintptr, len(pcs))
+	copy(e.pcs, pcs)
 }
 
 func formatStackTrace(e Error) string {
@@ -170,7 +196,7 @@ func formatStackTrace(e Error) string {
 			file = file[len(goPath):]
 		}
 		formattedFrames = append(formattedFrames, fmt.Sprintf(
-			"   at %v in %v, line %d",
+			"%v\n\t%v:%d",
 			frame.Function,
 			file,
 			frame.Line))
