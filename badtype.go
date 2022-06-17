@@ -23,10 +23,10 @@ type UnexpectedType struct {
 
 	// slice is an array of the Expected and Actual values to avoid an
 	// allocation outside of the UnexpectedType value itself.
-	slice [5]interface{}
+	slice [3]interface{}
 }
 
-const errUnexpectedTypeDefaultString = "%T: expected: %v (type: %T), but found: %v (type: %T)"
+const errUnexpectedTypeDefaultString = "%[1]T: expected: %[2]v (type: %[2]T), but found: %[3]v (type: %[3]T)"
 
 // NewUnexpectedType returns an UnexpectedType error from the given pair of
 // values.
@@ -38,8 +38,6 @@ func NewUnexpectedType(expected, actual interface{}) *UnexpectedType {
 		slice: [...]interface{}{
 			nil, // the UnexpectdType error itself,
 			expected,
-			expected,
-			actual,
 			actual,
 		},
 	}
