@@ -135,21 +135,23 @@ func ErrorfWithCauseAndContext(cause, context error, format string, args ...inte
 // Error implements the builtin error interface that includes information about
 // the Err Cause and the Context.
 func (e Error) Error() string {
-	var ca string
-	if e.Cause != nil {
-		ca = fmt.Sprintf("Cause:  %v", e.Cause)
-	}
-	var co string
-	if e.Context != nil {
-		co = fmt.Sprintf("Context:  %v", e.Context)
-	}
-	stackTrace := formatStackTrace(e)
-	return strings.Join([]string{
+	args := []string{
 		e.Err.Error(),
-		stackTrace,
-		ca,
-		co,
-	}, "\n")
+		"",	// stackTrace
+		"",	// cause
+		"",	// context
+	}
+	args = args[:2]
+	if args[1] = formatStackTrace(e); args[1] == "" {
+		args = args[:1]
+	}
+	if e.Cause != nil {
+		args = append(args, fmt.Sprintf("Cause:  %v", e.Cause))
+	}
+	if e.Context != nil {
+		args = append(args, fmt.Sprintf("Context:  %v", e.Context))
+	}
+	return strings.Join(args, "\n")
 }
 
 func (e Error) As(target interface{}) bool {

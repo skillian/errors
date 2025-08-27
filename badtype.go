@@ -32,7 +32,9 @@ const errUnexpectedTypeDefaultString = "%[1]T: expected: %[2]v (type: %[2]T), bu
 // values.
 func NewUnexpectedType(expected, actual interface{}) *UnexpectedType {
 	err := &UnexpectedType{
-		Message:  Message{},
+		Message: Message{
+			Fmt: errUnexpectedTypeDefaultString,
+		},
 		Expected: expected,
 		Actual:   actual,
 		slice: [...]interface{}{
@@ -41,15 +43,8 @@ func NewUnexpectedType(expected, actual interface{}) *UnexpectedType {
 			actual,
 		},
 	}
-	// set the first element of the slice so the error formatting works
-	// correctly.
 	err.slice[0] = err
-	err.Message = Message{
-		Fmt: errUnexpectedTypeDefaultString,
-		// slicing an array keeps the array itself instead of allocating
-		// a new slice:
-		Args: err.slice[:],
-	}
+	err.Message.Args = err.slice[:]
 	return err
 }
 
